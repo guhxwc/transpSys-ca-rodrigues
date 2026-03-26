@@ -1218,9 +1218,9 @@ async function supaDeleteCtrb(id) {
 // ═══════════════════════════════════════════════════════════
 //  MIGRAÇÃO — localStorage → Supabase (roda uma vez)
 // ═══════════════════════════════════════════════════════════
-async function migrarLocalStorageParaSupabase() {
+async function migrarLocalStorageParaSupabase(forcar=false) {
   const migrado = localStorage.getItem('supa_migrado_v1');
-  if (migrado) return;
+  if (migrado && !forcar) return;
 
   const clientes      = JSON.parse(localStorage.getItem('db_clientes')      || '[]');
   const motoristas    = JSON.parse(localStorage.getItem('db_motoristas')    || '[]');
@@ -1277,6 +1277,14 @@ async function migrarLocalStorageParaSupabase() {
       <div>Ordens <strong id="coc">0</strong></div>
       <div>CTRBs <strong id="cct">0</strong></div>
     </div>
+    <button onclick="migrarManual()" id="btn-migrar" style="
+      background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);
+      color:#f59e0b;border-radius:8px;padding:.35rem .85rem;cursor:pointer;
+      font-family:'Syne',sans-serif;font-weight:700;font-size:.72rem;
+      white-space:nowrap;transition:all .2s;display:none;
+    " title="Migrar dados do localStorage para o Supabase">
+      ☁️ Migrar para Nuvem
+    </button>
   </div>
 </header>
 
@@ -4418,7 +4426,7 @@ function imprimirProprietario(i){
 
 // Inicializa proprietários no DOMContentLoaded — chamado junto com o listener principal
 window.addEventListener('DOMContentLoaded', async ()=>{
-  // 1. Migrar localStorage → Supabase (só na primeira vez)
+  // 1. Migrar localStorage → Supabase (só na primeira vez, se tiver dados)
   await migrarLocalStorageParaSupabase();
   // 2. Carregar dados do Supabase
   await carregarDoSupabase();
@@ -4426,6 +4434,8 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   renderC(); renderM(); renderV(); renderCar(); renderPr(); updCnt();
   ocRenderOrdens();
   if(typeof ctrbInit==='function') ctrbInit();
+  // 4. Verificar se ainda tem dados locais não migrados
+  verificarDadosLocais();
 });
 
 </script>
@@ -5789,7 +5799,112 @@ function ctrbSelecionarProp(idx) {
 });
 
 
+// ═══════════════════════════════════════════════════════════
+//  MIGRAÇÃO MANUAL — botão no header
+// ═══════════════════════════════════════════════════════════
+async function migrarManual() {
+  const btn = document.getElementById('btn-migrar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Migrando...'; }
+
+  // Remove flag para forçar nova migração
+  localStorage.removeItem('supa_migrado_v1');
+
+  const clientes      = JSON.parse(localStorage.getItem('db_clientes')      || '[]');
+  const motoristas    = JSON.parse(localStorage.getItem('db_motoristas')    || '[]');
+  const veiculos      = JSON.parse(localStorage.getItem('db_veiculos')      || '[]');
+  const proprietarios = JSON.parse(localStorage.getItem('db_proprietarios') || '[]');
+  const contratos     = JSON.parse(localStorage.getItem('ctrb_contratos')   || '[]');
+  const ordens        = JSON.parse(localStorage.getItem('ordens-coleta')    || '[]');
+
+  const total = clientes.length + motoristas.length + veiculos.length +
+                proprietarios.length + contratos.length + ordens.length;
+
+  if (total === 0) {
+    alert('ℹ️ Nenhum dado encontrado no localStorage para migrar.\n\nSe você já usa o site com dados, abra o sistema no computador/navegador onde os dados foram cadastrados e clique em "Migrar para Nuvem".');
+    if (btn) { btn.disabled = false; btn.textContent = '☁️ Migrar para Nuvem'; }
+    return;
+  }
+
+  const confirmar = confirm(
+    `📦 Encontrado no localStorage:\n` +
+    `• ${clientes.length} cliente(s)\n` +
+    `• ${motoristas.length} motorista(s)\n` +
+    `• ${veiculos.length} veículo(s)\n` +
+    `• ${proprietarios.length} proprietário(s)\n` +
+    `• ${contratos.length} contrato(s) CTRB\n` +
+    `• ${ordens.length} ordem(s) de coleta\n\n` +
+    `Total: ${total} registros\n\n` +
+    `Deseja migrar tudo para o Supabase agora?`
+  );
+
+  if (!confirmar) {
+    if (btn) { btn.disabled = false; btn.textContent = '☁️ Migrar para Nuvem'; }
+    return;
+  }
+
+  // Barra de progresso
+  let div = document.getElementById('supa-migrando');
+  if (!div) {
+    div = document.createElement('div');
+    div.id = 'supa-migrando';
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#000;text-align:center;padding:12px;font-weight:700;font-family:Syne,sans-serif;font-size:14px;';
+    document.body.prepend(div);
+  }
+
+  let ok = 0, erros = 0;
+
+  const tentativa = async (fn, label) => {
+    try {
+      await fn();
+      ok++;
+      div.textContent = `⏳ Migrando... ${ok}/${total} — ${label}`;
+    } catch(e) {
+      erros++;
+      console.error(`Erro ao migrar ${label}:`, e);
+    }
+  };
+
+  for (const c of clientes)      await tentativa(() => supaUpsertCliente(c),      `cliente ${c.nome}`);
+  for (const m of motoristas)    await tentativa(() => supaUpsertMotorista(m),    `motorista ${m.nome}`);
+  for (const v of veiculos)      await tentativa(() => supaUpsertVeiculo(v),      `veículo ${v.placa}`);
+  for (const p of proprietarios) await tentativa(() => supaUpsertProprietario(p), `proprietário ${p.nome}`);
+  for (const ct of contratos)    await tentativa(() => supaUpsertCtrb(ct),        `CTRB ${ct.numero}`);
+
+  localStorage.setItem('supa_migrado_v1', '1');
+
+  if (erros === 0) {
+    div.style.background = '#10b981';
+    div.textContent = `✅ Migração concluída! ${ok} registros enviados para o Supabase com sucesso!`;
+  } else {
+    div.style.background = '#f59e0b';
+    div.textContent = `⚠️ Migração: ${ok} enviados, ${erros} com erro. Verifique o console.`;
+  }
+
+  setTimeout(() => div.remove(), 6000);
+
+  // Recarregar da nuvem
+  await carregarDoSupabase();
+  renderC(); renderM(); renderV(); renderCar(); renderPr(); updCnt();
+  if (typeof ctrbInit === 'function') ctrbInit();
+
+  if (btn) { btn.disabled = false; btn.textContent = '✅ Migrado!'; }
+}
+
+// Verifica se tem dados no localStorage e mostra botão de migração
+function verificarDadosLocais() {
+  const temDados = (
+    JSON.parse(localStorage.getItem('db_clientes')      || '[]').length > 0 ||
+    JSON.parse(localStorage.getItem('db_motoristas')    || '[]').length > 0 ||
+    JSON.parse(localStorage.getItem('db_veiculos')      || '[]').length > 0 ||
+    JSON.parse(localStorage.getItem('db_proprietarios') || '[]').length > 0 ||
+    JSON.parse(localStorage.getItem('ctrb_contratos')   || '[]').length > 0
+  );
+  const btn = document.getElementById('btn-migrar');
+  if (btn) btn.style.display = temDados ? 'inline-flex' : 'none';
+}
+
 ctrbInit();
+verificarDadosLocais();
 </script>
 
 <!-- ══ CTRB MODAL BUSCA MOTORISTA ══ -->
