@@ -1000,6 +1000,269 @@ tr[onclick]:hover td:first-child{border-left:2px solid var(--accent);}
 .ctrb-modal-foot { padding: .75rem 1rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; flex-shrink: 0; }
 
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+//  SUPABASE — Configuração e helpers
+// ═══════════════════════════════════════════════════════════
+const SUPA_URL = 'https://hwhpntkjdjddltllrohb.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3aHBudGtqZGpkZGx0bGxyb2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MDk1NjksImV4cCI6MjA3ODk4NTU2OX0.FvbghzrwzqYZKS5ObCaE5svoyLJ98d9g26tY9h2ND10';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ── Helper: normaliza id (Supabase usa bigint) ──
+function normId(obj) {
+  const o = {...obj};
+  if (o.id && typeof o.id === 'number') o.id = String(o.id);
+  return o;
+}
+
+// ── Helper: converte campos de data vazios para null ──
+function cleanDates(obj, dateFields) {
+  const o = {...obj};
+  dateFields.forEach(f => { if (!o[f] || o[f] === '') o[f] = null; });
+  return o;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CARREGAMENTO — busca dados do Supabase
+// ═══════════════════════════════════════════════════════════
+async function carregarDoSupabase() {
+  console.log('📡 Carregando dados do Supabase...');
+  try {
+    const [cli, mot, vei, prop, ordens, ctrbs] = await Promise.all([
+      supa.from('clientes').select('*').order('id'),
+      supa.from('motoristas').select('*').order('id'),
+      supa.from('veiculos').select('*').order('id'),
+      supa.from('proprietarios').select('*').order('id'),
+      supa.from('ordens_coleta').select('*').order('id'),
+      supa.from('contratos_ctrb').select('*').order('id'),
+    ]);
+
+    // Mapeia colunas snake_case → camelCase do sistema
+    DB.clientes      = (cli.data   || []).map(mapCliente);
+    DB.motoristas    = (mot.data   || []).map(mapMotorista);
+    DB.veiculos      = (vei.data   || []).map(mapVeiculo);
+    DB.proprietarios = (prop.data  || []).map(mapProprietario);
+
+    // Ordens de coleta
+    localStorage.setItem('ordens-coleta', JSON.stringify((ordens.data||[]).map(mapOrdem)));
+
+    // CTRB
+    ctrbDb.contratos = (ctrbs.data || []).map(mapCtrb);
+    ctrbDb.contador  = ctrbDb.contratos.length > 0
+      ? Math.max(...ctrbDb.contratos.map(c => parseInt((c.numero||'0').replace(/\D/g,''))||0))
+      : 1732;
+
+    console.log(`✅ Supabase: ${DB.clientes.length} clientes, ${DB.motoristas.length} motoristas, ${DB.veiculos.length} veículos, ${DB.proprietarios.length} proprietários, ${(ordens.data||[]).length} ordens, ${ctrbDb.contratos.length} CTRBs`);
+    return true;
+  } catch(e) {
+    console.error('❌ Erro ao carregar Supabase:', e);
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAPEADORES — Supabase (snake_case) ↔ Sistema (camelCase)
+// ═══════════════════════════════════════════════════════════
+function mapCliente(r) {
+  return { id:Number(r.id), doc:r.doc, nome:r.nome, fan:r.fan||'', email:r.email||'',
+    tel:r.tel||'', cep:r.cep||'', end:r.end||'', cid:r.cid||'', sit:r.sit||'—', tipo:r.tipo||'cliente' };
+}
+function mapMotorista(r) {
+  return { id:Number(r.id), doc:r.doc, nome:r.nome, nasc:r.nasc||'', tel:r.tel||'',
+    email:r.email||'', cnh:r.cnh||'', cat:r.cat||'', venc:r.venc||'', emis:r.emis||'',
+    status:r.status||'ativo', cep:r.cep||'', cid:r.cid||'', end:r.end||'' };
+}
+function mapVeiculo(r) {
+  return { id:Number(r.id), subtipo:r.subtipo, placa:r.placa, fmt:r.fmt||'br',
+    tipoCav:r.tipo_cav||'', tipo:r.tipo||'', comp:r.comp||'',
+    marca:r.marca||'', modelo:r.modelo||'', anof:r.anof||'', anom:r.anom||'',
+    cor:r.cor||'', comb:r.comb||'', renavam:r.renavam||'', chassi:r.chassi||'',
+    rntrc:r.rntrc||'', tara:r.tara||'', carga:r.carga||'', mot:r.mot||'',
+    sit:r.sit||'ativo', propDoc:r.prop_doc||'', propNome:r.prop_nome||'',
+    propRntrc:r.prop_rntrc||'', propTel:r.prop_tel||'' };
+}
+function mapProprietario(r) {
+  return { id:Number(r.id), doc:r.doc, nome:r.nome, fan:r.fan||'', ie:r.ie||'',
+    tel:r.tel||'', email:r.email||'', cep:r.cep||'', cid:r.cid||'', end:r.end||'',
+    rntrc:r.rntrc||'', rntrcVenc:r.rntrc_venc||'', tipoProp:r.tipo_prop||'',
+    uf:r.uf||'', sitAntt:r.sit_antt||'ativo', sit:r.sit||'ativo',
+    banco:r.banco||'', tipoConta:r.tipo_conta||'', agencia:r.agencia||'',
+    conta:r.conta||'', titNome:r.tit_nome||'', titDoc:r.tit_doc||'',
+    pixTipo:r.pix_tipo||'', pixChave:r.pix_chave||'' };
+}
+function mapOrdem(r) {
+  return { id:Number(r.id), numero:r.numero, dataColeta:r.data_coleta||'', status:r.status||'pendente',
+    transpCnpj:r.transp_cnpj||'', transpNome:r.transp_nome||'', transpTel:r.transp_tel||'', transpEnd:r.transp_end||'',
+    remCnpj:r.rem_cnpj||'', remNome:r.rem_nome||'', remEnd:r.rem_end||'', remTel:r.rem_tel||'',
+    remEmail:r.rem_email||'', remLink:r.rem_link||'',
+    destinatarios:r.destinatarios||[], cargaCliente:r.carga_cliente||'',
+    cargaDesc:r.carga_desc||'', cargaEsp:r.carga_esp||'',
+    motNome:r.mot_nome||'', motCpf:r.mot_cpf||'', motCnh:r.mot_cnh||'', motTel:r.mot_tel||'',
+    veiPlaca:r.vei_placa||'', veiMarca:r.vei_marca||'', veiModelo:r.vei_modelo||'',
+    veiRenavam:r.vei_renavam||'', veiRntrc:r.vei_rntrc||'', veiTipo:r.vei_tipo||'',
+    veiAnof:r.vei_anof||'', veiAnom:r.vei_anom||'', veiCor:r.vei_cor||'', veiCarga:r.vei_carga||'',
+    carPlaca:r.car_placa||'', carTipo:r.car_tipo||'', obs:r.obs||'', valorFrete:r.valor_frete||'' };
+}
+function mapCtrb(r) {
+  return { id:Number(r.id), numero:r.numero, serie:r.serie||'SJP',
+    emissao:(r.emissao||'').replace('T',' ').slice(0,16), status:r.status||'pendente',
+    cte_ref:r.cte_ref||'', cont_cnpj:r.cont_cnpj||'', cont_nome:r.cont_nome||'',
+    cont_end:r.cont_end||'', cont_cidade:r.cont_cidade||'', banco:r.banco||'',
+    agencia:r.agencia||'', conta:r.conta||'', pix:r.pix||'', crntrc:r.crntrc||'',
+    pis:r.pis||'', ciot:r.ciot||'', origem:r.origem||'', destino:r.destino||'',
+    distancia:r.distancia||'', passar_por:r.passar_por||'',
+    prev_chegada:(r.prev_chegada||'').replace(' ','T').slice(0,16),
+    placa:r.placa||'', marca:r.marca||'', modelo:r.modelo||'', tipo:r.tipo||'TRUCK',
+    ano_cor:r.ano_cor||'', chassi:r.chassi||'', capacidade:r.capacidade||'', renavam:r.renavam||'',
+    mot_nome:r.mot_nome||'', mot_endereco:r.mot_endereco||'', mot_cidade:r.mot_cidade||'',
+    mot_cpf:r.mot_cpf||'', mot_cnh:r.mot_cnh||'', mot_fone:r.mot_fone||'',
+    mot2_nome:r.mot2_nome||'', mot2_cpf:r.mot2_cpf||'', mot2_cnh:r.mot2_cnh||'', mot2_fone:r.mot2_fone||'',
+    valor_ctrb:r.valor_ctrb||'', inss:r.inss||'0,00', irrf:r.irrf||'0,00',
+    prev_social:r.prev_social||'0,00', sest_senat:r.sest_senat||'0,00',
+    adiantamento:r.adiantamento||'', adiant_pct:r.adiant_pct||'70',
+    pedagio:r.pedagio||'0,00', combustivel:r.combustivel||'0,00', outros:r.outros||'0,00',
+    carretas:r.carretas||'', manifesto:r.manifesto||'', obs_extra:r.obs_extra||'' };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SALVAR NO SUPABASE — upsert por entidade
+// ═══════════════════════════════════════════════════════════
+async function supaUpsertCliente(obj) {
+  const row = { id:String(obj.id), doc:obj.doc, nome:obj.nome, fan:obj.fan||null,
+    email:obj.email||null, tel:obj.tel||null, cep:obj.cep||null,
+    end:obj.end||null, cid:obj.cid||null, sit:obj.sit||'—', tipo:obj.tipo||'cliente' };
+  const { error } = await supa.from('clientes').upsert(row, {onConflict:'id'});
+  if(error) console.error('supa clientes upsert:', error.message);
+}
+
+async function supaUpsertMotorista(obj) {
+  const row = cleanDates({ id:String(obj.id), doc:obj.doc, nome:obj.nome, nasc:obj.nasc||null,
+    tel:obj.tel||null, email:obj.email||null, cnh:obj.cnh||null, cat:obj.cat||null,
+    venc:obj.venc||null, emis:obj.emis||null, status:obj.status||'ativo',
+    cep:obj.cep||null, cid:obj.cid||null, end:obj.end||null }, ['nasc','venc','emis']);
+  const { error } = await supa.from('motoristas').upsert(row, {onConflict:'id'});
+  if(error) console.error('supa motoristas upsert:', error.message);
+}
+
+async function supaUpsertVeiculo(obj) {
+  const row = { id:String(obj.id), subtipo:obj.subtipo, placa:obj.placa, fmt:obj.fmt||'br',
+    tipo_cav:obj.tipoCav||null, tipo:obj.tipo||null, comp:obj.comp||null,
+    marca:obj.marca||null, modelo:obj.modelo||null, anof:obj.anof||null, anom:obj.anom||null,
+    cor:obj.cor||null, comb:obj.comb||null, renavam:obj.renavam||null, chassi:obj.chassi||null,
+    rntrc:obj.rntrc||null, tara:obj.tara||null, carga:obj.carga||null, mot:obj.mot||null,
+    sit:obj.sit||'ativo', prop_doc:obj.propDoc||null, prop_nome:obj.propNome||null,
+    prop_rntrc:obj.propRntrc||null, prop_tel:obj.propTel||null };
+  const { error } = await supa.from('veiculos').upsert(row, {onConflict:'id'});
+  if(error) console.error('supa veiculos upsert:', error.message);
+}
+
+async function supaUpsertProprietario(obj) {
+  const row = cleanDates({ id:String(obj.id), doc:obj.doc, nome:obj.nome, fan:obj.fan||null,
+    ie:obj.ie||null, tel:obj.tel||null, email:obj.email||null, cep:obj.cep||null,
+    cid:obj.cid||null, end:obj.end||null, rntrc:obj.rntrc||null,
+    rntrc_venc:obj.rntrcVenc||null, tipo_prop:obj.tipoProp||null, uf:obj.uf||null,
+    sit_antt:obj.sitAntt||'ativo', sit:obj.sit||'ativo', banco:obj.banco||null,
+    tipo_conta:obj.tipoConta||null, agencia:obj.agencia||null, conta:obj.conta||null,
+    tit_nome:obj.titNome||null, tit_doc:obj.titDoc||null,
+    pix_tipo:obj.pixTipo||null, pix_chave:obj.pixChave||null }, ['rntrc_venc']);
+  const { error } = await supa.from('proprietarios').upsert(row, {onConflict:'id'});
+  if(error) console.error('supa proprietarios upsert:', error.message);
+}
+
+async function supaDeleteCliente(id) {
+  await supa.from('clientes').delete().eq('id', String(id));
+}
+async function supaDeleteMotorista(id) {
+  await supa.from('motoristas').delete().eq('id', String(id));
+}
+async function supaDeleteVeiculo(id) {
+  await supa.from('veiculos').delete().eq('id', String(id));
+}
+async function supaDeleteProprietario(id) {
+  await supa.from('proprietarios').delete().eq('id', String(id));
+}
+
+async function supaUpsertCtrb(obj) {
+  const emissao = obj.emissao ? obj.emissao.replace(' ','T') : null;
+  const prev    = obj.prev_chegada ? obj.prev_chegada.replace(' ','T') : null;
+  const row = { id:String(obj.id), numero:obj.numero, serie:obj.serie||'SJP',
+    emissao:emissao||null, status:obj.status||'pendente', cte_ref:obj.cte_ref||null,
+    cont_cnpj:obj.cont_cnpj||null, cont_nome:obj.cont_nome||null,
+    cont_end:obj.cont_end||null, cont_cidade:obj.cont_cidade||null,
+    banco:obj.banco||null, agencia:obj.agencia||null, conta:obj.conta||null,
+    pix:obj.pix||null, crntrc:obj.crntrc||null, pis:obj.pis||null, ciot:obj.ciot||null,
+    origem:obj.origem||null, destino:obj.destino||null, distancia:obj.distancia||null,
+    passar_por:obj.passar_por||null, prev_chegada:prev||null,
+    placa:obj.placa||null, marca:obj.marca||null, modelo:obj.modelo||null,
+    tipo:obj.tipo||'TRUCK', ano_cor:obj.ano_cor||null, chassi:obj.chassi||null,
+    capacidade:obj.capacidade||null, renavam:obj.renavam||null,
+    mot_nome:obj.mot_nome||null, mot_endereco:obj.mot_endereco||null,
+    mot_cidade:obj.mot_cidade||null, mot_cpf:obj.mot_cpf||null,
+    mot_cnh:obj.mot_cnh||null, mot_fone:obj.mot_fone||null,
+    mot2_nome:obj.mot2_nome||null, mot2_cpf:obj.mot2_cpf||null,
+    mot2_cnh:obj.mot2_cnh||null, mot2_fone:obj.mot2_fone||null,
+    valor_ctrb:obj.valor_ctrb||null, inss:obj.inss||'0,00', irrf:obj.irrf||'0,00',
+    prev_social:obj.prev_social||'0,00', sest_senat:obj.sest_senat||'0,00',
+    adiantamento:obj.adiantamento||null, adiant_pct:obj.adiant_pct||'70',
+    pedagio:obj.pedagio||'0,00', combustivel:obj.combustivel||'0,00', outros:obj.outros||'0,00',
+    carretas:obj.carretas||null, manifesto:obj.manifesto||null, obs_extra:obj.obs_extra||null };
+  const { error } = await supa.from('contratos_ctrb').upsert(row, {onConflict:'id'});
+  if(error) console.error('supa ctrb upsert:', error.message);
+}
+async function supaDeleteCtrb(id) {
+  await supa.from('contratos_ctrb').delete().eq('id', String(id));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MIGRAÇÃO — localStorage → Supabase (roda uma vez)
+// ═══════════════════════════════════════════════════════════
+async function migrarLocalStorageParaSupabase() {
+  const migrado = localStorage.getItem('supa_migrado_v1');
+  if (migrado) return;
+
+  const clientes      = JSON.parse(localStorage.getItem('db_clientes')      || '[]');
+  const motoristas    = JSON.parse(localStorage.getItem('db_motoristas')    || '[]');
+  const veiculos      = JSON.parse(localStorage.getItem('db_veiculos')      || '[]');
+  const proprietarios = JSON.parse(localStorage.getItem('db_proprietarios') || '[]');
+  const ordens        = JSON.parse(localStorage.getItem('ordens-coleta')    || '[]');
+  const contratos     = JSON.parse(localStorage.getItem('ctrb_contratos')   || '[]');
+
+  const total = clientes.length + motoristas.length + veiculos.length +
+                proprietarios.length + ordens.length + contratos.length;
+
+  if (total === 0) { localStorage.setItem('supa_migrado_v1','1'); return; }
+
+  console.log(`🔄 Migrando ${total} registros do localStorage para o Supabase...`);
+
+  // Mostra indicador visual
+  const div = document.createElement('div');
+  div.id = 'supa-migrando';
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#000;text-align:center;padding:10px;font-weight:700;font-family:Syne,sans-serif;font-size:14px;';
+  div.textContent = `⏳ Migrando ${total} registros para a nuvem (Supabase)... Aguarde.`;
+  document.body.prepend(div);
+
+  try {
+    for (const c of clientes)      await supaUpsertCliente(c);
+    for (const m of motoristas)    await supaUpsertMotorista(m);
+    for (const v of veiculos)      await supaUpsertVeiculo(v);
+    for (const p of proprietarios) await supaUpsertProprietario(p);
+    for (const ct of contratos)    await supaUpsertCtrb(ct);
+
+    localStorage.setItem('supa_migrado_v1','1');
+    div.style.background = '#10b981';
+    div.textContent = `✅ ${total} registros migrados para o Supabase com sucesso!`;
+    setTimeout(()=>div.remove(), 4000);
+    console.log('✅ Migração concluída!');
+  } catch(e) {
+    div.style.background = '#ef4444';
+    div.textContent = '❌ Erro na migração: ' + e.message;
+    console.error('Erro migração:', e);
+  }
+}
+</script>
+
 </head>
 <body>
 
@@ -2004,6 +2267,7 @@ function salvarDB(){
   localStorage.setItem('db_motoristas',    JSON.stringify(DB.motoristas));
   localStorage.setItem('db_veiculos',      JSON.stringify(DB.veiculos));
   localStorage.setItem('db_proprietarios', JSON.stringify(DB.proprietarios));
+  // Supabase sync is done per-entity on save/delete
 }
 
 // ══════════════════════════════════════
@@ -2378,40 +2642,40 @@ function sv(px){
     const doc=gv('c-doc'), nome=gv('c-nome');
     if(!doc||!nome) return toast('⚠ CNPJ/CPF e Nome são obrigatórios!','e');
     if(DB.clientes.find(x=>x.doc===doc)) return toast('⚠ Este CNPJ/CPF já está cadastrado.','e');
-    DB.clientes.push({id:Date.now(),doc,nome,fan:gv('c-fan'),email:gv('c-email'),tel:gv('c-tel'),cep:gv('c-cep'),end:gv('c-end'),cid:gv('c-cid'),sit:gv('c-sit')||'—',tipo:gv('c-tipo')});
-    renderC(); lp('c'); salvarDB(); toast('✓ Cliente cadastrado!');
+    const _newCli={id:Date.now(),doc,nome,fan:gv('c-fan'),email:gv('c-email'),tel:gv('c-tel'),cep:gv('c-cep'),end:gv('c-end'),cid:gv('c-cid'),sit:gv('c-sit')||'—',tipo:gv('c-tipo')};
+    DB.clientes.push(_newCli); renderC(); lp('c'); salvarDB(); supaUpsertCliente(_newCli); toast('✓ Cliente cadastrado!');
 
   } else if(px==='m'){
     const doc=gv('m-doc'), nome=gv('m-nome');
     if(!doc||!nome) return toast('⚠ CPF e Nome são obrigatórios!','e');
     if(DB.motoristas.find(x=>x.doc===doc)) return toast('⚠ CPF já cadastrado.','e');
-    DB.motoristas.push({id:Date.now(),doc,nome,nasc:gv('m-nasc'),tel:gv('m-tel'),email:gv('m-email'),cnh:gv('m-cnh'),cat:gv('m-cat'),venc:gv('m-venc'),emis:gv('m-emis'),status:gv('m-st'),cep:gv('m-cep'),cid:gv('m-cid'),end:gv('m-end')});
-    salvarDB(); renderM(); lp('m'); toast('✓ Motorista cadastrado!');
+    const _newMot={id:Date.now(),doc,nome,nasc:gv('m-nasc'),tel:gv('m-tel'),email:gv('m-email'),cnh:gv('m-cnh'),cat:gv('m-cat'),venc:gv('m-venc'),emis:gv('m-emis'),status:gv('m-st'),cep:gv('m-cep'),cid:gv('m-cid'),end:gv('m-end')};
+    DB.motoristas.push(_newMot); salvarDB(); supaUpsertMotorista(_newMot); renderM(); lp('m'); toast('✓ Motorista cadastrado!');
 
   } else if(px==='v'){
     // CAVALO
     const placa=gv('v-placa'), marca=gv('v-mtext'), modelo=gv('v-motext');
     if(!placa) return toast('⚠ Placa é obrigatória!','e');
     if(DB.veiculos.find(x=>x.placa===placa)) return toast('⚠ Esta placa já está cadastrada.','e');
-    DB.veiculos.push({id:Date.now(),subtipo:'cav',placa,fmt:gv('v-fmt'),tipoCav:gv('v-tipo-cav'),marca,modelo,
+    const _newCav={id:Date.now(),subtipo:'cav',placa,fmt:gv('v-fmt'),tipoCav:gv('v-tipo-cav'),marca,modelo,
       anof:gv('v-anof'),anom:gv('v-anom'),cor:gv('v-cor'),comb:gv('v-comb'),
       renavam:gv('v-renavam'),chassi:gv('v-chassi'),rntrc:gv('v-rntrc'),tara:gv('v-tara'),
       carga:gv('v-carga'),mot:gv('v-mot'),sit:gv('v-sit'),
-      propDoc:gv('v-prop-doc'),propNome:gv('v-prop-nome'),propRntrc:gv('v-prop-rntrc'),propTel:gv('v-prop-tel')});
-    salvarDB(); renderV(); lp('v'); toast('✓ Cavalo cadastrado!');
+      propDoc:gv('v-prop-doc'),propNome:gv('v-prop-nome'),propRntrc:gv('v-prop-rntrc'),propTel:gv('v-prop-tel')};
+    DB.veiculos.push(_newCav); salvarDB(); supaUpsertVeiculo(_newCav); renderV(); lp('v'); toast('✓ Cavalo cadastrado!');
 
   } else if(px==='car'){
     // CARRETA
     const placa=gv('car-placa');
     if(!placa) return toast('⚠ Placa é obrigatória!','e');
     if(DB.veiculos.find(x=>x.placa===placa)) return toast('⚠ Esta placa já está cadastrada.','e');
-    DB.veiculos.push({id:Date.now(),subtipo:'car',placa,fmt:gv('car-fmt'),tipo:gv('car-tipo'),
+    const _newCar={id:Date.now(),subtipo:'car',placa,fmt:gv('car-fmt'),tipo:gv('car-tipo'),
       marca:gv('car-marca'),modelo:gv('car-modelo'),
       anof:gv('car-anof'),anom:gv('car-anom'),cor:gv('car-cor'),
       renavam:gv('car-renavam'),chassi:gv('car-chassi'),rntrc:gv('car-rntrc'),
       tara:gv('car-tara'),carga:gv('car-carga'),comp:gv('car-comp'),sit:gv('car-sit'),
-      propDoc:gv('car-prop-doc'),propNome:gv('car-prop-nome'),propRntrc:gv('car-prop-rntrc'),propTel:gv('car-prop-tel')});
-    salvarDB(); renderCar(); lp('car'); toast('✓ Carreta cadastrada!');
+      propDoc:gv('car-prop-doc'),propNome:gv('car-prop-nome'),propRntrc:gv('car-prop-rntrc'),propTel:gv('car-prop-tel')};
+    DB.veiculos.push(_newCar); salvarDB(); supaUpsertVeiculo(_newCar); renderCar(); lp('car'); toast('✓ Carreta cadastrada!');
 
   } else if(px==='pr'){
     // PROPRIETÁRIO
@@ -2603,9 +2867,9 @@ function carregarCarreta(id){
 }
 
 function del(px,id){
-  if(px==='c') DB.clientes=DB.clientes.filter(x=>x.id!==id),salvarDB(),renderC();
-  else if(px==='m') DB.motoristas=DB.motoristas.filter(x=>x.id!==id),salvarDB(),renderM();
-  else DB.veiculos=DB.veiculos.filter(x=>x.id!==id),salvarDB(),renderV(),renderCar();
+  if(px==='c'){ DB.clientes=DB.clientes.filter(x=>x.id!==id); salvarDB(); renderC(); supaDeleteCliente(id); }
+  else if(px==='m'){ DB.motoristas=DB.motoristas.filter(x=>x.id!==id); salvarDB(); renderM(); supaDeleteMotorista(id); }
+  else { DB.veiculos=DB.veiculos.filter(x=>x.id!==id); salvarDB(); renderV(); renderCar(); supaDeleteVeiculo(id); }
   updCnt(); toast('🗑 Registro removido.','e');
 }
 
@@ -3959,6 +4223,8 @@ function editPr(i){
 
 function delPr(i){
   if(!confirm('Excluir este proprietário?'))return;
+  const _delPr = DB.proprietarios[i];
+  if(_delPr) supaDeleteProprietario(_delPr.id);
   DB.proprietarios.splice(i,1);salvarDB();renderPr();updCnt();
   toast('🗑 Proprietário excluído','e');
 }
@@ -4151,7 +4417,16 @@ function imprimirProprietario(i){
 }
 
 // Inicializa proprietários no DOMContentLoaded — chamado junto com o listener principal
-window.addEventListener('DOMContentLoaded',()=>{ renderC();renderM();renderV();renderCar();renderPr();updCnt(); });
+window.addEventListener('DOMContentLoaded', async ()=>{
+  // 1. Migrar localStorage → Supabase (só na primeira vez)
+  await migrarLocalStorageParaSupabase();
+  // 2. Carregar dados do Supabase
+  await carregarDoSupabase();
+  // 3. Renderizar telas
+  renderC(); renderM(); renderV(); renderCar(); renderPr(); updCnt();
+  ocRenderOrdens();
+  if(typeof ctrbInit==='function') ctrbInit();
+});
 
 </script>
 <script>
