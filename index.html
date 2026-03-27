@@ -1027,6 +1027,56 @@ function cleanDates(obj, dateFields) {
 // ═══════════════════════════════════════════════════════════
 //  CARREGAMENTO — busca dados do Supabase
 // ═══════════════════════════════════════════════════════════
+
+async function supaUpsertOrdem(o) {
+  if (!o || !o.id) return;
+  const s = v => (v && v !== '') ? v : null;
+  const row = {
+    id: Number(o.id),
+    numero: o.num || o.numero || '',
+    data_coleta: s(o.data || o.dataColeta),
+    status: o.status || 'pendente',
+    transp_cnpj: s(o.transpCNPJ),
+    transp_nome: s(o.transpNome),
+    transp_tel: s(o.transpTel),
+    transp_end: s(o.transpEnd),
+    rem_cnpj: s(o.remCNPJ),
+    rem_nome: s(o.remNome),
+    rem_end: s(o.remEnd),
+    rem_tel: s(o.remTel),
+    rem_email: s(o.remEmail),
+    rem_link: s(o.remLink),
+    destinatarios: o.destinatarios || [],
+    carga_cliente: s(o.cargaCliente),
+    carga_desc: s(o.cargaDesc),
+    carga_esp: s(o.cargaEsp),
+    mot_nome: s(o.motorista || o.motNome),
+    mot_cpf: s(o.motCpf),
+    mot_cnh: s(o.motCnh),
+    mot_tel: s(o.motTel),
+    vei_placa: s(o.placa || o.veiPlaca),
+    vei_marca: s(o.veiMarca),
+    vei_modelo: s(o.veiModelo),
+    vei_renavam: s(o.veiRenavam),
+    vei_rntrc: s(o.veiRntrc),
+    vei_tipo: s(o.veiTipoCav || o.veiTipo),
+    vei_anof: s(o.veiAno || o.veiAnof),
+    vei_anom: s(o.veiAnoCar || o.veiAnom),
+    vei_cor: s(o.veiCor),
+    vei_carga: s(o.veiCap || o.veiCarga),
+    car_placa: s(o.placaCar || o.carPlaca),
+    car_tipo: s(o.veiTipoCar || o.carTipo),
+    obs: s(o.obs),
+    valor_frete: s(o.valorFrete)
+  };
+  const { error } = await supa.from('ordens_coleta').upsert(row, { onConflict: 'id' });
+  if (error) console.error('supa ordens_coleta upsert:', error.message);
+}
+
+async function supaDeleteOrdem(id) {
+  await supa.from('ordens_coleta').delete().eq('id', String(id));
+}
+
 async function carregarDoSupabase() {
   console.log('📡 Carregando dados do Supabase...');
   try {
@@ -3538,12 +3588,14 @@ function ocSalvar(){
       ? DB.clientes.find(x=>x.doc&&x.doc.replace(/\D/g,'')===chave)
       : DB.clientes.find(x=>x.nome&&x.nome.toLowerCase()===c.nome.toLowerCase());
     if(!jaExiste){
-      DB.clientes.push({
+      const _ocNewCli = {
         id:Date.now()+novos,
         doc:c.doc||'', nome:c.nome||'', fan:'', email:c.email||'',
         tel:c.tel||'', cep:'', end:c.end||'', cid:'',
         sit:'Ativa', tipo:c.tipo
-      });
+      };
+      DB.clientes.push(_ocNewCli);
+      supaUpsertCliente(_ocNewCli);
       novos++;
     }
   });
@@ -3552,16 +3604,21 @@ function ocSalvar(){
     ocToast(`✓ ${novos} cliente${novos>1?'s':''} salvo${novos>1?'s':''} automaticamente no cadastro!`);
   }
 
+  const ordemId = ocEditandoId || Date.now();
   if(ocEditandoId){
     const i=ocOrdens.findIndex(o=>o.id===ocEditandoId);
-    if(i>=0)ocOrdens[i]={...d,id:ocEditandoId};
+    if(i>=0)ocOrdens[i]={...d,id:ordemId};
     ocEditandoId=null; ocToast('✓ Ordem atualizada!');
   }else{
-    ocOrdens.unshift({...d,id:Date.now()});
+    ocOrdens.unshift({...d,id:ordemId});
     ocContador++; localStorage.setItem('oc-counter',ocContador);
     ocToast('✓ Ordem salva!');
   }
   localStorage.setItem('ordens-coleta',JSON.stringify(ocOrdens));
+
+  // ── Sync para Supabase ──
+  supaUpsertOrdem({...d, id:ordemId});
+
   ocRenderOrdens(); ocNovaOrdem(); updCnt();
 }
 
@@ -3593,6 +3650,7 @@ function ocExcluir(id,e){
   if(!confirm('Excluir esta ordem?'))return;
   ocOrdens=ocOrdens.filter(o=>o.id!==id);
   localStorage.setItem('ordens-coleta',JSON.stringify(ocOrdens));
+  supaDeleteOrdem(id);
   ocRenderOrdens(); updCnt(); ocToast('🗑 Ordem excluída','err');
 }
 
@@ -3637,6 +3695,8 @@ function ocNovaOrdem(){
 function ocLimparForm(){if(!confirm('Limpar todos os campos?'))return;ocNovaOrdem();}
 function ocLimparTodas(){
   if(!confirm('Excluir TODAS as ordens salvas?'))return;
+  // Delete all from Supabase
+  ocOrdens.forEach(o => supaDeleteOrdem(o.id));
   ocOrdens=[];localStorage.removeItem('ordens-coleta');
   ocRenderOrdens();updCnt();ocToast('🗑 Ordens apagadas','err');
 }
