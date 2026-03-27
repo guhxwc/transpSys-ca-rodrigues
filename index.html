@@ -1130,24 +1130,24 @@ function mapCtrb(r) {
 //  SALVAR NO SUPABASE — upsert por entidade
 // ═══════════════════════════════════════════════════════════
 async function supaUpsertCliente(obj) {
-  const row = { id:String(obj.id), doc:obj.doc, nome:obj.nome, fan:obj.fan||null,
+  const row = { id:Number(obj.id), doc:obj.doc, nome:obj.nome, fan:obj.fan||null,
     email:obj.email||null, tel:obj.tel||null, cep:obj.cep||null,
-    end:obj.end||null, cid:obj.cid||null, sit:obj.sit||'—', tipo:obj.tipo||'cliente' };
+    endereco:obj.end||null, cid:obj.cid||null, sit:obj.sit||'—', tipo:obj.tipo||'cliente' };
   const { error } = await supa.from('clientes').upsert(row, {onConflict:'id'});
   if(error) console.error('supa clientes upsert:', error.message);
 }
 
 async function supaUpsertMotorista(obj) {
-  const row = cleanDates({ id:String(obj.id), doc:obj.doc, nome:obj.nome, nasc:obj.nasc||null,
+  const row = cleanDates({ id:Number(obj.id), doc:obj.doc, nome:obj.nome, nasc:obj.nasc||null,
     tel:obj.tel||null, email:obj.email||null, cnh:obj.cnh||null, cat:obj.cat||null,
     venc:obj.venc||null, emis:obj.emis||null, status:obj.status||'ativo',
-    cep:obj.cep||null, cid:obj.cid||null, end:obj.end||null }, ['nasc','venc','emis']);
+    cep:obj.cep||null, cid:obj.cid||null, endereco:obj.end||null }, ['nasc','venc','emis']);
   const { error } = await supa.from('motoristas').upsert(row, {onConflict:'id'});
   if(error) console.error('supa motoristas upsert:', error.message);
 }
 
 async function supaUpsertVeiculo(obj) {
-  const row = { id:String(obj.id), subtipo:obj.subtipo, placa:obj.placa, fmt:obj.fmt||'br',
+  const row = { id:Number(obj.id), subtipo:obj.subtipo, placa:obj.placa, fmt:obj.fmt||'br',
     tipo_cav:obj.tipoCav||null, tipo:obj.tipo||null, comp:obj.comp||null,
     marca:obj.marca||null, modelo:obj.modelo||null, anof:obj.anof||null, anom:obj.anom||null,
     cor:obj.cor||null, comb:obj.comb||null, renavam:obj.renavam||null, chassi:obj.chassi||null,
@@ -1159,9 +1159,9 @@ async function supaUpsertVeiculo(obj) {
 }
 
 async function supaUpsertProprietario(obj) {
-  const row = cleanDates({ id:String(obj.id), doc:obj.doc, nome:obj.nome, fan:obj.fan||null,
+  const row = cleanDates({ id:Number(obj.id), doc:obj.doc, nome:obj.nome, fan:obj.fan||null,
     ie:obj.ie||null, tel:obj.tel||null, email:obj.email||null, cep:obj.cep||null,
-    cid:obj.cid||null, end:obj.end||null, rntrc:obj.rntrc||null,
+    cid:obj.cid||null, endereco:obj.end||null, rntrc:obj.rntrc||null,
     rntrc_venc:obj.rntrcVenc||null, tipo_prop:obj.tipoProp||null, uf:obj.uf||null,
     sit_antt:obj.sitAntt||'ativo', sit:obj.sit||'ativo', banco:obj.banco||null,
     tipo_conta:obj.tipoConta||null, agencia:obj.agencia||null, conta:obj.conta||null,
@@ -1187,7 +1187,7 @@ async function supaDeleteProprietario(id) {
 async function supaUpsertCtrb(obj) {
   const emissao = obj.emissao ? obj.emissao.replace(' ','T') : null;
   const prev    = obj.prev_chegada ? obj.prev_chegada.replace(' ','T') : null;
-  const row = { id:String(obj.id), numero:obj.numero, serie:obj.serie||'SJP',
+  const row = { id:Number(obj.id), numero:obj.numero, serie:obj.serie||'SJP',
     emissao:emissao||null, status:obj.status||'pendente', cte_ref:obj.cte_ref||null,
     cont_cnpj:obj.cont_cnpj||null, cont_nome:obj.cont_nome||null,
     cont_end:obj.cont_end||null, cont_cidade:obj.cont_cidade||null,
@@ -5954,6 +5954,67 @@ verificarDadosLocais();
     <div class="ctrb-modal-list" id="ctrb-prop-list"></div>
     <div class="ctrb-modal-foot">
       <button class="btn btn-s btn-sm" onclick="document.getElementById('ctrb-modal-prop').classList.remove('open')">✕ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL CADASTRO RÁPIDO OC ══ -->
+<div class="oc-modal-overlay" id="oc-modal-overlay">
+  <div class="oc-modal">
+    <div class="oc-modal-head">
+      <span class="oc-modal-title" id="oc-modal-title">Cadastro</span>
+      <button onclick="ocFecharModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;">✕</button>
+    </div>
+    <div class="oc-modal-body">
+      <div id="oc-modal-mot">
+        <div class="oc-fg">
+          <div class="oc-field"><label>CPF *</label>
+            <input type="text" id="oc-mr-cpf" placeholder="000.000.000-00" maxlength="14" oninput="ocFmtCpf(this)"></div>
+          <div class="oc-field"><label>Telefone</label>
+            <input type="text" id="oc-mr-tel" placeholder="(00) 00000-0000"></div>
+          <div class="oc-field oc-ff"><label>Nome Completo *</label>
+            <input type="text" id="oc-mr-nome" placeholder="Nome do motorista"></div>
+          <div class="oc-field"><label>Nº CNH</label>
+            <input type="text" id="oc-mr-cnh" placeholder="00000000000"></div>
+          <div class="oc-field"><label>Categoria CNH</label>
+            <input type="text" id="oc-mr-cat" placeholder="Ex: E"></div>
+        </div>
+      </div>
+      <div id="oc-modal-vei" style="display:none">
+        <div class="oc-fg">
+          <div class="oc-field"><label>Placa *</label>
+            <input type="text" id="oc-mr-placa" placeholder="ABC1D23" style="text-transform:uppercase"></div>
+          <div class="oc-field"><label>RENAVAM</label>
+            <input type="text" id="oc-mr-renavam" placeholder="00000000000" maxlength="11"></div>
+          <div class="oc-field"><label>Marca</label>
+            <input type="text" id="oc-mr-marca" placeholder="Ex: Scania, Volvo"></div>
+          <div class="oc-field"><label>Modelo</label>
+            <input type="text" id="oc-mr-modelo" placeholder="Ex: R450, FH 540"></div>
+          <div class="oc-field"><label>Ano Fab.</label>
+            <input type="text" id="oc-mr-anof" placeholder="2022" maxlength="4"></div>
+          <div class="oc-field"><label>Ano Mod.</label>
+            <input type="text" id="oc-mr-anom" placeholder="2023" maxlength="4"></div>
+          <div class="oc-field"><label>Cor</label>
+            <input type="text" id="oc-mr-cor" placeholder="Ex: Branco"></div>
+          <div class="oc-field"><label>Cap. (ton)</label>
+            <input type="text" id="oc-mr-carga" placeholder="Ex: 27"></div>
+          <div class="oc-field"><label>RNTRC / ANTT</label>
+            <input type="text" id="oc-mr-rntrc" placeholder="Nº ANTT"></div>
+          <div class="oc-field"><label>Tipo</label>
+            <select id="oc-mr-tipo">
+              <option value="">Selecione...</option>
+              <option>Cavalo Simples (4×2)</option><option>Cavalo Trucado (6×2)</option>
+              <option>Cavalo Trucado (6×4)</option><option>Truck (3 eixos)</option>
+              <option>Toco (2 eixos)</option><option>Sider</option><option>Baú Seco</option>
+              <option>Baú Refrigerado</option><option>Graneleiro</option>
+              <option>Prancha</option><option>Tanque</option><option>Bitrem</option>
+            </select></div>
+        </div>
+      </div>
+    </div>
+    <div class="oc-modal-foot">
+      <button class="oc-btn oc-btn-outline oc-btn-sm" onclick="ocFecharModal()">Cancelar</button>
+      <button class="oc-btn oc-btn-primary oc-btn-sm" onclick="ocSalvarCadastroRapido()">💾 Salvar e Usar</button>
     </div>
   </div>
 </div>
