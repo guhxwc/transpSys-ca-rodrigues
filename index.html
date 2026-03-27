@@ -1464,7 +1464,23 @@ async function migrarLocalStorageParaSupabase(forcar=false) {
   <!-- ── CAVALO ── -->
   <div id="vp-cav">
     <div class="card">
-      <div class="ctitle"><div class="ico ico-g">🚛</div>Novo Cavalo Mecânico</div>
+      <div class="ctitle">
+  <div class="ico ico-g">🚛</div>Novo Cavalo Mecânico
+  <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center;">
+    <label for="crlv-upload-cav" style="
+      background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.05));
+      border:1.5px solid rgba(245,158,11,.4);color:#f59e0b;
+      border-radius:8px;padding:.38rem .85rem;cursor:pointer;
+      font-family:'Syne',sans-serif;font-weight:700;font-size:.75rem;
+      white-space:nowrap;transition:all .2s;display:inline-flex;align-items:center;gap:.4rem;"
+      title="Importar CRLV em PDF e preencher automaticamente"
+      onmouseover="this.style.background='linear-gradient(135deg,rgba(245,158,11,.35),rgba(245,158,11,.1))'"
+      onmouseout="this.style.background='linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.05))'">
+      📄 Importar CRLV
+    </label>
+    <input type="file" id="crlv-upload-cav" accept=".pdf" style="display:none" onchange="importarCRLV(this,'cav')">
+  </div>
+</div>
       <div id="sb-v" class="sbox"></div>
       <div class="fg" style="margin-bottom:1rem">
         <div class="field">
@@ -1565,7 +1581,23 @@ async function migrarLocalStorageParaSupabase(forcar=false) {
   <!-- ── CARRETA ── -->
   <div id="vp-car" style="display:none">
     <div class="card">
-      <div class="ctitle"><div class="ico" style="background:rgba(245,158,11,.14)">🔗</div>Nova Carreta / Reboque</div>
+      <div class="ctitle">
+  <div class="ico" style="background:rgba(245,158,11,.14)">🔗</div>Nova Carreta / Reboque
+  <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center;">
+    <label for="crlv-upload-car" style="
+      background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.05));
+      border:1.5px solid rgba(245,158,11,.4);color:#f59e0b;
+      border-radius:8px;padding:.38rem .85rem;cursor:pointer;
+      font-family:'Syne',sans-serif;font-weight:700;font-size:.75rem;
+      white-space:nowrap;transition:all .2s;display:inline-flex;align-items:center;gap:.4rem;"
+      title="Importar CRLV em PDF e preencher automaticamente"
+      onmouseover="this.style.background='linear-gradient(135deg,rgba(245,158,11,.35),rgba(245,158,11,.1))'"
+      onmouseout="this.style.background='linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.05))'">
+      📄 Importar CRLV
+    </label>
+    <input type="file" id="crlv-upload-car" accept=".pdf" style="display:none" onchange="importarCRLV(this,'car')">
+  </div>
+</div>
       <div id="sb-car" class="sbox"></div>
       <div class="fg">
         <div class="field">
@@ -5961,6 +5993,203 @@ function verificarDadosLocais() {
   );
   const btn = document.getElementById('btn-migrar');
   if (btn) btn.style.display = temDados ? 'inline-flex' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  IMPORTAR CRLV — Lê PDF e preenche formulário com IA
+// ═══════════════════════════════════════════════════════════
+
+async function importarCRLV(input, tipo) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Reset input so same file can be reloaded
+  input.value = '';
+
+  const sbId = tipo === 'cav' ? 'sb-v' : 'sb-car';
+  const sb = document.getElementById(sbId);
+
+  const showStatus = (msg, cls) => {
+    if (!sb) return;
+    sb.className = 'sbox on ' + cls;
+    sb.textContent = msg;
+  };
+
+  showStatus('📄 Lendo PDF do CRLV...', 'info');
+
+  // Convert PDF to base64
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  showStatus('🤖 Extraindo dados com IA... aguarde', 'info');
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+            },
+            {
+              type: 'text',
+              text: `Este é um CRLV (Certificado de Registro e Licenciamento de Veículo) brasileiro.
+Extraia TODOS os dados e retorne SOMENTE um JSON válido, sem texto extra, sem markdown, sem backticks.
+Formato exato:
+{
+  "placa": "",
+  "renavam": "",
+  "chassi": "",
+  "marca": "",
+  "modelo": "",
+  "ano_fabricacao": "",
+  "ano_modelo": "",
+  "cor": "",
+  "combustivel": "",
+  "especie_tipo": "",
+  "carroceria": "",
+  "potencia": "",
+  "pbt": "",
+  "cmt": "",
+  "eixos": "",
+  "capacidade_carga": "",
+  "proprietario_nome": "",
+  "proprietario_cpf_cnpj": "",
+  "municipio_uf": "",
+  "numero_crv": "",
+  "placa_anterior": ""
+}
+Retorne apenas o JSON.`
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error('API erro ' + response.status + ': ' + err.slice(0, 200));
+    }
+
+    const data = await response.json();
+    const rawText = data.content.find(b => b.type === 'text')?.text || '';
+
+    let dados;
+    try {
+      // Remove markdown backticks if any
+      const clean = rawText.replace(/```json|```/g, '').trim();
+      dados = JSON.parse(clean);
+    } catch(e) {
+      throw new Error('Não foi possível interpretar a resposta da IA. Resposta: ' + rawText.slice(0,100));
+    }
+
+    // Preenche os campos do formulário
+    preencherFormularioVeiculo(dados, tipo);
+
+    const placa = dados.placa || '?';
+    showStatus(`✅ CRLV importado! Placa: ${placa} — Verifique os dados e clique em Salvar.`, 'ok');
+    toast(`✅ CRLV lido! Placa ${placa} preenchida automaticamente.`);
+
+  } catch(e) {
+    console.error('Erro CRLV:', e);
+    showStatus('❌ Erro ao ler CRLV: ' + e.message, 'err');
+    toast('❌ Erro ao importar CRLV: ' + e.message.slice(0, 80), 'e');
+  }
+}
+
+function preencherFormularioVeiculo(d, tipo) {
+  const p = tipo === 'cav' ? 'v' : 'car';
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+
+  // Placa — limpa traço e formata
+  const placa = (d.placa || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  set(p + '-placa', placa);
+
+  // Marca e Modelo
+  const marcaModelo = (d.marca || '') + ' ' + (d.modelo || '');
+  if (tipo === 'cav') {
+    set('v-mtext',  d.marca  || '');
+    set('v-motext', d.modelo || '');
+  } else {
+    set('car-marca',  d.marca  || '');
+    set('car-modelo', d.modelo || '');
+  }
+
+  set(p + '-anof',    d.ano_fabricacao || '');
+  set(p + '-anom',    d.ano_modelo     || '');
+  set(p + '-cor',     d.cor            || '');
+  set(p + '-renavam', d.renavam        || '');
+  set(p + '-chassi',  d.chassi         || '');
+
+  // Combustível → normaliza para select
+  const combRaw = (d.combustivel || '').toLowerCase();
+  const combMap = { 'diesel': 'Diesel', 'diesel s-10': 'Diesel S-10', 'gasolina': 'Gasolina',
+                    'flex': 'Flex', 'elétrico': 'Elétrico', 'eletrico': 'Elétrico', 'gnv': 'GNV' };
+  const combVal = Object.entries(combMap).find(([k]) => combRaw.includes(k))?.[1] || '';
+  const combEl = document.getElementById(p + '-comb');
+  if (combEl && combVal) {
+    for (const opt of combEl.options) {
+      if (opt.value === combVal || opt.text === combVal) { combEl.value = opt.value; break; }
+    }
+  }
+
+  // Capacidade de carga em kg
+  if (d.capacidade_carga) set(p + '-carga', d.capacidade_carga.replace(/[^0-9,.]/g,''));
+
+  // Tara = PBT - carga
+  if (d.pbt) set(p + '-tara', d.pbt.replace(/[^0-9,.]/g,''));
+
+  // Proprietário
+  set(p + '-prop-doc',  d.proprietario_cpf_cnpj || '');
+  set(p + '-prop-nome', d.proprietario_nome      || '');
+
+  // Tipo cavalo — detecta pelo especie_tipo / carroceria
+  if (tipo === 'cav') {
+    const esp = (d.especie_tipo || d.carroceria || '').toLowerCase();
+    const tipoCavEl = document.getElementById('v-tipo-cav');
+    if (tipoCavEl) {
+      if (esp.includes('truck') || esp.includes('3 eixos')) tipoCavEl.value = 'Truck (3 eixos)';
+      else if (esp.includes('toco') || esp.includes('2 eixos')) tipoCavEl.value = 'Toco (2 eixos)';
+      else if (esp.includes('trucado') && esp.includes('6x4')) tipoCavEl.value = 'Cavalo Trucado (6×4)';
+      else if (esp.includes('trucado')) tipoCavEl.value = 'Cavalo Trucado (6×2)';
+      else if (esp.includes('cavalo')) tipoCavEl.value = 'Cavalo Simples (4×2)';
+    }
+  } else {
+    // Carreta — tenta detectar tipo
+    const esp = (d.especie_tipo || d.carroceria || '').toLowerCase();
+    const tipoCarEl = document.getElementById('car-tipo');
+    if (tipoCarEl) {
+      if (esp.includes('graneleiro')) tipoCarEl.value = 'Graneleiro';
+      else if (esp.includes('bau') || esp.includes('baú')) tipoCarEl.value = 'Baú Seco';
+      else if (esp.includes('sider')) tipoCarEl.value = 'Sider';
+      else if (esp.includes('prancha')) tipoCarEl.value = 'Prancha';
+      else if (esp.includes('tanque')) tipoCarEl.value = 'Tanque';
+      else if (esp.includes('cegonha')) tipoCarEl.value = 'Cegonheira';
+    }
+  }
+
+  // Formato placa
+  const fmtEl = document.getElementById(p + '-fmt');
+  if (fmtEl) {
+    fmtEl.value = /^[A-Z]{3}\d[A-Z]\d{2}$/.test(placa) ? 'ms' : 'br';
+  }
+
+  // Scroll para o topo do formulário
+  const panel = document.getElementById('vp-' + (tipo === 'cav' ? 'cav' : 'car'));
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 ctrbInit();
