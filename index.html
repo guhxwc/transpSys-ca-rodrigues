@@ -2793,6 +2793,7 @@ function sv(px){
       DB.proprietarios[editIdx]={...DB.proprietarios[editIdx],...obj,id:DB.proprietarios[editIdx].id};
       G('pr-doc')._editIdx=undefined;
       toast('✓ Proprietário atualizado: '+nome);
+      supaUpsertProprietario({...DB.proprietarios[editIdx],...obj});
     } else {
       const jaExiste = DB.proprietarios.find(x=>x.doc===doc);
       if(jaExiste){
@@ -2801,6 +2802,7 @@ function sv(px){
       }
       DB.proprietarios.push(obj);
       toast('✓ Proprietário cadastrado: '+nome);
+      supaUpsertProprietario(obj);
     }
     try{ salvarDB(); }catch(e){ alert('Erro ao salvar: '+e.message); return; }
     try{ renderPr(); }catch(e){ console.error('renderPr error:',e); }
@@ -4643,6 +4645,7 @@ function salvarContrato() {
   if (idx >= 0) ctrbDb.contratos[idx] = contratoAtivo;
   else ctrbDb.contratos.unshift(contratoAtivo);
   ctrbSalvarDB();
+  supaUpsertCtrb(contratoAtivo);
   renderizarLista();
   ctrbToast('✅ Contrato salvo com sucesso!', 'success');
   atualizarPreview();
