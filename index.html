@@ -5469,12 +5469,12 @@ function imprimirCTRB() {
 }
 
 // ===================== MOTORISTAS =====================
-function selecionarMotorista(slot) {
+function ctrbSelecionarMotorista(slot) {
   if (!DB.motoristas.length) {
     ctrbToast('Nenhum motorista cadastrado. Use "+ Novo Motorista".', 'error');
     return;
   }
-  const lista = DB.motoristas.map((m,i) => `${i+1}. ${m.nome} — CPF: ${m.cpf}`).join('\n');
+  const lista = DB.motoristas.map((m,i) => `${i+1}. ${m.nome} — CPF: ${m.doc||'—'}`).join('\n');
   const num = prompt(`Selecione o motorista (número):\n\n${lista}`);
   if (!num) return;
   const idx = parseInt(num)-1;
@@ -5482,11 +5482,11 @@ function selecionarMotorista(slot) {
   const m = DB.motoristas[idx];
   if (slot === 1) {
     const f = id => document.getElementById(id);
-    if (f('f_mot_nome')) f('f_mot_nome').value = m.nome;
-    if (f('f_mot_cpf')) f('f_mot_cpf').value = m.cpf;
-    if (f('f_mot_end')) f('f_mot_end').value = m.endereco + (m.cidade ? ' — ' + m.cidade : '');
-    if (f('f_mot_cnh')) f('f_mot_cnh').value = m.cnh;
-    if (f('f_mot_fone')) f('f_mot_fone').value = m.fone;
+    if (f('f_mot_nome')) f('f_mot_nome').value = m.nome||'';
+    if (f('f_mot_cpf')) f('f_mot_cpf').value = m.doc||'';
+    if (f('f_mot_end')) f('f_mot_end').value = [m.end, m.cid].filter(Boolean).join(' — ');
+    if (f('f_mot_cnh')) f('f_mot_cnh').value = m.cnh||'';
+    if (f('f_mot_fone')) f('f_mot_fone').value = m.tel||'';
   }
   previewLive();
   ctrbToast(`✅ Motorista ${m.nome} selecionado!`, 'success');
