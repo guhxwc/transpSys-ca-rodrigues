@@ -2736,7 +2736,14 @@ function sv(px){
     if(!editId && DB.clientes.find(x=>x.doc===doc)) return toast('⚠ Este CNPJ/CPF já está cadastrado.','e');
     const _newCli={id:editId||Date.now(),doc,nome,fan:gv('c-fan'),email:gv('c-email'),tel:gv('c-tel'),cep:gv('c-cep'),end:gv('c-end'),cid:gv('c-cid'),sit:gv('c-sit')||'—',tipo:gv('c-tipo')};
     if(G('c-doc')) G('c-doc')._editId = undefined;
-    DB.clientes.push(_newCli); renderC(); lp('c'); salvarDB(); supaUpsertCliente(_newCli);
+    // Se editando, substitui no array; se novo, adiciona
+    if(editId) {
+      const idx = DB.clientes.findIndex(x=>x.id===editId);
+      if(idx>=0) DB.clientes[idx]=_newCli; else DB.clientes.push(_newCli);
+    } else {
+      DB.clientes.push(_newCli);
+    }
+    renderC(); lp('c'); salvarDB(); supaUpsertCliente(_newCli);
     toast(editId ? '✏ Cliente atualizado!' : '✓ Cliente cadastrado!');
 
   } else if(px==='m'){
@@ -2746,7 +2753,13 @@ function sv(px){
     if(!editIdM && DB.motoristas.find(x=>x.doc===doc)) return toast('⚠ CPF já cadastrado.','e');
     const _newMot={id:editIdM||Date.now(),doc,nome,nasc:gv('m-nasc'),tel:gv('m-tel'),email:gv('m-email'),cnh:gv('m-cnh'),cat:gv('m-cat'),venc:gv('m-venc'),emis:gv('m-emis'),status:gv('m-st'),cep:gv('m-cep'),cid:gv('m-cid'),end:gv('m-end')};
     if(G('m-doc')) G('m-doc')._editId = undefined;
-    DB.motoristas.push(_newMot); salvarDB(); supaUpsertMotorista(_newMot); renderM(); lp('m');
+    if(editIdM) {
+      const idxM = DB.motoristas.findIndex(x=>x.id===editIdM);
+      if(idxM>=0) DB.motoristas[idxM]=_newMot; else DB.motoristas.push(_newMot);
+    } else {
+      DB.motoristas.push(_newMot);
+    }
+    salvarDB(); supaUpsertMotorista(_newMot); renderM(); lp('m');
     toast(editIdM ? '✏ Motorista atualizado!' : '✓ Motorista cadastrado!');
 
   } else if(px==='v'){
@@ -2797,10 +2810,12 @@ function sv(px){
       id:Date.now()
     };
     if(typeof editIdx==='number'){
-      DB.proprietarios[editIdx]={...DB.proprietarios[editIdx],...obj,id:DB.proprietarios[editIdx].id};
+      const _prId = DB.proprietarios[editIdx].id;
+      const _prObj = {...DB.proprietarios[editIdx],...obj, id:_prId};
+      DB.proprietarios[editIdx] = _prObj;
       G('pr-doc')._editIdx=undefined;
       toast('✓ Proprietário atualizado: '+nome);
-      supaUpsertProprietario({...DB.proprietarios[editIdx],...obj});
+      supaUpsertProprietario(_prObj);
     } else {
       const jaExiste = DB.proprietarios.find(x=>x.doc===doc);
       if(jaExiste){
@@ -2845,13 +2860,11 @@ function carregarCliente(id){
   sv2('c-email',c.email||''); sv2('c-tel',c.tel||''); sv2('c-cep',c.cep||'');
   sv2('c-end',c.end||''); sv2('c-cid',c.cid||''); sv2('c-sit',c.sit||'');
   const tp=G('c-tipo'); if(tp) tp.value=c.tipo||'cliente';
-  // Guarda ID original para reutilizar ao salvar (não criar duplicata)
+  // Marca para edição (sv() vai fazer upsert com mesmo id)
   G('c-doc')._editId = id;
-  // remove do array para permitir re-salvar
-  DB.clientes=DB.clientes.filter(x=>x.id!==id); salvarDB(); renderC(); updCnt();
   window.scrollTo({top:0,behavior:'smooth'});
   G('p-clientes').scrollIntoView({behavior:'smooth',block:'start'});
-  toast('✏ Cadastro de '+c.nome+' carregado para edição.');
+  toast('✏ Cadastro de '+c.nome+' carregado para edição. Altere os campos e clique em Salvar.');
 }
 
 function renderM(){
@@ -2882,12 +2895,10 @@ function carregarMotorista(id){
   const cat=G('m-cat'); if(cat) cat.value=m.cat||'E';
   const st2=G('m-st'); if(st2) st2.value=m.status||'ativo';
   if(m.venc){ const cr=G('cnh-result'); if(cr) cr.style.display='none'; }
-  // Guarda ID original para reutilizar ao salvar
+  // Marca para edição
   G('m-doc')._editId = id;
-  // remove para permitir re-salvar
-  DB.motoristas=DB.motoristas.filter(x=>x.id!==id); salvarDB(); renderM(); updCnt();
   document.getElementById('p-motoristas').scrollIntoView({behavior:'smooth',block:'start'});
-  toast('✏ Cadastro de '+m.nome+' carregado para edição.');
+  toast('✏ Cadastro de '+m.nome+' carregado para edição. Altere os campos e clique em Salvar.');
 }
 
 function renderV(){
