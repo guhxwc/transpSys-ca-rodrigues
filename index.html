@@ -2731,16 +2731,23 @@ function sv(px){
   if(px==='c'){
     const doc=gv('c-doc'), nome=gv('c-nome');
     if(!doc||!nome) return toast('⚠ CNPJ/CPF e Nome são obrigatórios!','e');
-    if(DB.clientes.find(x=>x.doc===doc)) return toast('⚠ Este CNPJ/CPF já está cadastrado.','e');
-    const _newCli={id:Date.now(),doc,nome,fan:gv('c-fan'),email:gv('c-email'),tel:gv('c-tel'),cep:gv('c-cep'),end:gv('c-end'),cid:gv('c-cid'),sit:gv('c-sit')||'—',tipo:gv('c-tipo')};
-    DB.clientes.push(_newCli); renderC(); lp('c'); salvarDB(); supaUpsertCliente(_newCli); toast('✓ Cliente cadastrado!');
+    // Verifica duplicata apenas se não é edição
+    const editId = G('c-doc')?._editId;
+    if(!editId && DB.clientes.find(x=>x.doc===doc)) return toast('⚠ Este CNPJ/CPF já está cadastrado.','e');
+    const _newCli={id:editId||Date.now(),doc,nome,fan:gv('c-fan'),email:gv('c-email'),tel:gv('c-tel'),cep:gv('c-cep'),end:gv('c-end'),cid:gv('c-cid'),sit:gv('c-sit')||'—',tipo:gv('c-tipo')};
+    if(G('c-doc')) G('c-doc')._editId = undefined;
+    DB.clientes.push(_newCli); renderC(); lp('c'); salvarDB(); supaUpsertCliente(_newCli);
+    toast(editId ? '✏ Cliente atualizado!' : '✓ Cliente cadastrado!');
 
   } else if(px==='m'){
     const doc=gv('m-doc'), nome=gv('m-nome');
     if(!doc||!nome) return toast('⚠ CPF e Nome são obrigatórios!','e');
-    if(DB.motoristas.find(x=>x.doc===doc)) return toast('⚠ CPF já cadastrado.','e');
-    const _newMot={id:Date.now(),doc,nome,nasc:gv('m-nasc'),tel:gv('m-tel'),email:gv('m-email'),cnh:gv('m-cnh'),cat:gv('m-cat'),venc:gv('m-venc'),emis:gv('m-emis'),status:gv('m-st'),cep:gv('m-cep'),cid:gv('m-cid'),end:gv('m-end')};
-    DB.motoristas.push(_newMot); salvarDB(); supaUpsertMotorista(_newMot); renderM(); lp('m'); toast('✓ Motorista cadastrado!');
+    const editIdM = G('m-doc')?._editId;
+    if(!editIdM && DB.motoristas.find(x=>x.doc===doc)) return toast('⚠ CPF já cadastrado.','e');
+    const _newMot={id:editIdM||Date.now(),doc,nome,nasc:gv('m-nasc'),tel:gv('m-tel'),email:gv('m-email'),cnh:gv('m-cnh'),cat:gv('m-cat'),venc:gv('m-venc'),emis:gv('m-emis'),status:gv('m-st'),cep:gv('m-cep'),cid:gv('m-cid'),end:gv('m-end')};
+    if(G('m-doc')) G('m-doc')._editId = undefined;
+    DB.motoristas.push(_newMot); salvarDB(); supaUpsertMotorista(_newMot); renderM(); lp('m');
+    toast(editIdM ? '✏ Motorista atualizado!' : '✓ Motorista cadastrado!');
 
   } else if(px==='v'){
     // CAVALO
@@ -2838,6 +2845,8 @@ function carregarCliente(id){
   sv2('c-email',c.email||''); sv2('c-tel',c.tel||''); sv2('c-cep',c.cep||'');
   sv2('c-end',c.end||''); sv2('c-cid',c.cid||''); sv2('c-sit',c.sit||'');
   const tp=G('c-tipo'); if(tp) tp.value=c.tipo||'cliente';
+  // Guarda ID original para reutilizar ao salvar (não criar duplicata)
+  G('c-doc')._editId = id;
   // remove do array para permitir re-salvar
   DB.clientes=DB.clientes.filter(x=>x.id!==id); salvarDB(); renderC(); updCnt();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -2873,9 +2882,10 @@ function carregarMotorista(id){
   const cat=G('m-cat'); if(cat) cat.value=m.cat||'E';
   const st2=G('m-st'); if(st2) st2.value=m.status||'ativo';
   if(m.venc){ const cr=G('cnh-result'); if(cr) cr.style.display='none'; }
+  // Guarda ID original para reutilizar ao salvar
+  G('m-doc')._editId = id;
   // remove para permitir re-salvar
   DB.motoristas=DB.motoristas.filter(x=>x.id!==id); salvarDB(); renderM(); updCnt();
-  // rola até o topo do painel motoristas
   document.getElementById('p-motoristas').scrollIntoView({behavior:'smooth',block:'start'});
   toast('✏ Cadastro de '+m.nome+' carregado para edição.');
 }
