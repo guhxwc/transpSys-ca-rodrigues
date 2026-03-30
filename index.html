@@ -1117,12 +1117,12 @@ async function carregarDoSupabase() {
 // ═══════════════════════════════════════════════════════════
 function mapCliente(r) {
   return { id:Number(r.id), doc:r.doc, nome:r.nome, fan:r.fan||'', email:r.email||'',
-    tel:r.tel||'', cep:r.cep||'', end:r.end||'', cid:r.cid||'', sit:r.sit||'—', tipo:r.tipo||'cliente' };
+    tel:r.tel||'', cep:r.cep||'', end:r.endereco||'', cid:r.cid||'', sit:r.sit||'—', tipo:r.tipo||'cliente' };
 }
 function mapMotorista(r) {
   return { id:Number(r.id), doc:r.doc, nome:r.nome, nasc:r.nasc||'', tel:r.tel||'',
     email:r.email||'', cnh:r.cnh||'', cat:r.cat||'', venc:r.venc||'', emis:r.emis||'',
-    status:r.status||'ativo', cep:r.cep||'', cid:r.cid||'', end:r.end||'' };
+    status:r.status||'ativo', cep:r.cep||'', cid:r.cid||'', end:r.endereco||'' };
 }
 function mapVeiculo(r) {
   return { id:Number(r.id), subtipo:r.subtipo, placa:r.placa, fmt:r.fmt||'br',
@@ -1135,7 +1135,7 @@ function mapVeiculo(r) {
 }
 function mapProprietario(r) {
   return { id:Number(r.id), doc:r.doc, nome:r.nome, fan:r.fan||'', ie:r.ie||'',
-    tel:r.tel||'', email:r.email||'', cep:r.cep||'', cid:r.cid||'', end:r.end||'',
+    tel:r.tel||'', email:r.email||'', cep:r.cep||'', cid:r.cid||'', end:r.endereco||'',
     rntrc:r.rntrc||'', rntrcVenc:r.rntrc_venc||'', tipoProp:r.tipo_prop||'',
     uf:r.uf||'', sitAntt:r.sit_antt||'ativo', sit:r.sit||'ativo',
     banco:r.banco||'', tipoConta:r.tipo_conta||'', agencia:r.agencia||'',
