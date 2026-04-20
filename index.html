@@ -2413,7 +2413,7 @@ async function bdoc(px){
 async function bCnpj(px,cnpj){
   spin(px,1); st(px,'info','🔎 Consultando CNPJ na Receita Federal…');
   try{
-    const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+cnpj);
+    const r=await fetch('https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj='+cnpj);
     const d=await r.json();
     if(r.ok && d.razao_social){
       sv2(px+'-nome', d.razao_social||'');
@@ -3144,7 +3144,7 @@ async function ocBuscarCnpj(valor,prefixo){
     if(spin)spin.innerHTML='<span class="oc-spin-anim">⏳</span>';
     if(badge)badge.innerHTML='<span class="cnpj-badge cb-load">🔍 Consultando...</span>';
     try{
-      const res=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+cnpj);
+      const res=await fetch('https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj='+cnpj);
       if(!res.ok)throw new Error();
       const d=await res.json();
       ocCnpjCache[cnpj]=d;
@@ -3253,7 +3253,7 @@ async function bPropDoc(){
   const sc=document.getElementById('sc-prop'),sb=document.getElementById('sb-prop');
   if(sc)sc.classList.add('on');if(sb){sb.className='sbox on info';sb.textContent='🔍 Consultando...';}
   try{
-    if(raw.length===14){const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+raw);const d=await r.json();if(r.ok&&d.razao_social){sv2('v-prop-nome',d.nome_fantasia?.trim()||d.razao_social);const tel=(d.ddd_telefone_1||'').replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3');if(tel)sv2('v-prop-tel',tel);ck('prop',1);if(sb){sb.className='sbox on ok';sb.textContent='✓ '+(d.nome_fantasia?.trim()||d.razao_social);}}}
+    if(raw.length===14){const r=await fetch('https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj='+raw);const d=await r.json();if(r.ok&&d.razao_social){sv2('v-prop-nome',d.nome_fantasia?.trim()||d.razao_social);const tel=(d.ddd_telefone_1||'').replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3');if(tel)sv2('v-prop-tel',tel);ck('prop',1);if(sb){sb.className='sbox on ok';sb.textContent='✓ '+(d.nome_fantasia?.trim()||d.razao_social);}}}
     else if(raw.length===11){if(okCpf(raw)){ck('prop',1);if(sb){sb.className='sbox on ok';sb.textContent='✓ CPF válido.';}}else{ck('prop',0);if(sb){sb.className='sbox on err';sb.textContent='✗ CPF inválido.';}}}
   }catch{if(sb){sb.className='sbox on err';sb.textContent='⚠ Falha. Preencha manualmente.';}}
   if(sc)sc.classList.remove('on');
@@ -3263,7 +3263,7 @@ async function bCarPropDoc(){
   const sc=document.getElementById('sc-carprop'),sb=document.getElementById('sb-carprop');
   if(sc)sc.classList.add('on');if(sb){sb.className='sbox on info';sb.textContent='🔍 Consultando...';}
   try{
-    if(raw.length===14){const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+raw);const d=await r.json();if(r.ok&&d.razao_social){sv2('car-prop-nome',d.nome_fantasia?.trim()||d.razao_social);const tel=(d.ddd_telefone_1||'').replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3');if(tel)sv2('car-prop-tel',tel);ck('carprop',1);if(sb){sb.className='sbox on ok';sb.textContent='✓ '+(d.nome_fantasia?.trim()||d.razao_social);}}}
+    if(raw.length===14){const r=await fetch('https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj='+raw);const d=await r.json();if(r.ok&&d.razao_social){sv2('car-prop-nome',d.nome_fantasia?.trim()||d.razao_social);const tel=(d.ddd_telefone_1||'').replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3');if(tel)sv2('car-prop-tel',tel);ck('carprop',1);if(sb){sb.className='sbox on ok';sb.textContent='✓ '+(d.nome_fantasia?.trim()||d.razao_social);}}}
     else if(raw.length===11){if(okCpf(raw)){ck('carprop',1);if(sb){sb.className='sbox on ok';sb.textContent='✓ CPF válido.';}}}
   }catch{}
   if(sc)sc.classList.remove('on');
@@ -3456,7 +3456,7 @@ async function ocBuscarCnpjDest(val, destId) {
   const badgeEl = document.getElementById('oc-dest-badge-'+destId);
   if (spinEl) spinEl.textContent = '⏳';
   const url = rawVal.length===14
-    ? `https://brasilapi.com.br/api/cnpj/v1/${rawVal}`
+    ? `https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj=${rawVal}`
     : `https://brasilapi.com.br/api/cpf/v1/${rawVal}`;
   fetch(url).then(r=>r.json()).then(data=>{
     if (spinEl) spinEl.textContent = '✓';
@@ -4199,7 +4199,7 @@ function cpBuscarDoc(){
   sb.textContent = '🔎 Consultando...'; sb.className='sbox on info';
   G('sc-cp').classList.add('on');
   const url = isPJ
-    ? 'https://brasilapi.com.br/api/cnpj/v1/'+raw
+    ? 'https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj='+raw
     : 'https://brasilapi.com.br/api/cpf/v1/'+raw;
   fetch(url).then(r=>r.ok?r.json():Promise.reject())
     .then(d=>{
@@ -4257,7 +4257,7 @@ async function bPrDoc(){
   if(sb){sb.className='sbox on info';sb.textContent='🔎 Consultando Receita Federal...';}
   try{
     if(raw.length===14){
-      const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+raw);
+      const r=await fetch('https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj='+raw);
       const d=await r.json();
       if(r.ok&&d.razao_social){
         sv2('pr-nome', d.nome_fantasia?.trim()||d.razao_social);
@@ -5614,7 +5614,7 @@ async function buscarCNPJ() {
 
   // Tentativa 2: BrasilAPI
   try {
-    const r2 = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+    const r2 = await fetch(`https://hwhpntkjdjddltllrohb.supabase.co/functions/v1/cnpj-lookup?cnpj=${digits}`);
     if (r2.ok) {
       const d2 = await r2.json();
       preencherDadosCNPJ_Brasil(d2, el, digits);
